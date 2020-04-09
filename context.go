@@ -12,16 +12,15 @@ import (
 // context
 
 type Context struct {
-	ID        string // 连接id
-	Conn      *websocket.Conn
-	Writer    http.ResponseWriter
-	Request   *http.Request
-	MsgChan   chan []byte
-	CloseChan chan struct{}
-	Logger    Log
-	val       map[string]string
-	Timer     map[string]*time.Timer
-	Group     *group // 所属组
+	ID      string // 连接id
+	Conn    *websocket.Conn
+	Writer  http.ResponseWriter
+	Request *http.Request
+	Closed  bool
+	Logger  Log
+	val     map[string]string
+	Timer   map[string]*time.Timer
+	Group   *group // 所属组
 	sync.Mutex
 	Engine
 }
@@ -36,10 +35,6 @@ func (c *Context) Set(key string, val string) {
 
 func (c *Context) Get(key string) string {
 	return c.val[key]
-}
-
-func (c *Context) CloseRead() {
-	c.CloseChan <- struct{}{}
 }
 
 func (c *Context) SetTimer(key string, timer *time.Timer) {
@@ -85,7 +80,7 @@ func (c *Context) SendText(data interface{}) error {
 		return err
 	}
 	if c.Conn == nil {
-		return errors.New(ErrorNotConn)
+		return errors.New(ErrorNotConnMsg)
 	}
 
 	c.Lock()
@@ -95,7 +90,7 @@ func (c *Context) SendText(data interface{}) error {
 
 func (c *Context) SendJson(data interface{}) error {
 	if c.Conn == nil {
-		return errors.New(ErrorNotConn)
+		return errors.New(ErrorNotConnMsg)
 	}
 	c.Lock()
 	defer c.Unlock()

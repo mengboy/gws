@@ -19,7 +19,7 @@ func (l *Logger) Debug(c *Context, msg string) {
 	l.Logger.Debug(msg)
 }
 func (l *Logger) Info(c *Context, msg string) {
-
+	l.Logger.Info(msg)
 }
 func (l *Logger) Notice(c *Context, msg string) {
 

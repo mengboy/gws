@@ -8,7 +8,6 @@ type Hook struct {
 	ProcessFunc func(c *Context)                                          // 处理成功连接
 	AfterRead   []func(c *Context, msgType int, msg []byte)               // 成功读取msg
 	ReadErr     []func(c *Context, msgType int, err error)                // 读取msg error
-
 	AfterJoinGroup  []func(c *Context, g *group) // 加入group
 	AfterLeaveGroup []func(c *Context, g *group) // 离开group
 }

@@ -9,11 +9,10 @@ import (
 type Engine struct {
 	Path         string
 	Port         string
-	Upgrader     func(writer http.ResponseWriter, request *http.Request) websocket.Upgrader
+	Upgrader     func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader
 	ResHeader    map[string]http.Header // 响应header
 	Timeout      int64                  // websocket 持续时间
 	router       *Router                // 路由
-	MsgChanCap   int                    // 容量
 	Logger       Log                    // log
 	CreateConnID func() string          // 生成唯一id
 	Hook
@@ -21,20 +20,15 @@ type Engine struct {
 
 // 初始化engine
 func New(path string, port string,
-	upgrader func(writer http.ResponseWriter, request *http.Request) websocket.Upgrader,
-	msgChanCap int, logger Log) *Engine {
-	if logger == nil {
-		logger = &Logger{
-			Logger: zap.NewNop(),
-		}
-	}
+	upgrader func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader) *Engine {
 	e := &Engine{
-		Path:       path,
-		Port:       port,
-		Upgrader:   upgrader,
-		router:     &Router{Handler: map[string]HandlerFunc{}},
-		MsgChanCap: msgChanCap,
-		Logger:     logger,
+		Path:     path,
+		Port:     port,
+		Upgrader: upgrader,
+		router:   &Router{Handler: map[string]HandlerFunc{}},
+		Logger: &Logger{
+			Logger: zap.NewNop(),
+		},
 	}
 	e.ProcessFunc = defaultProcess
 	e.CreateConnID = UUID
@@ -93,29 +87,30 @@ func (e *Engine) Run() error {
 			return
 		}
 		ctx := &Context{
-			ID:        e.CreateConnID(),
-			Conn:      conn,
-			Writer:    writer,
-			Request:   request,
-			MsgChan:   make(chan []byte, e.MsgChanCap),
-			CloseChan: make(chan struct{}, 0),
-			val:       map[string]string{},
-			Logger:    e.Logger,
+			ID:      e.CreateConnID(),
+			Conn:    conn,
+			Writer:  writer,
+			Request: request,
+			val:     map[string]string{},
+			Logger:  e.Logger,
 		}
 		for _, f := range e.AfterConn {
 			f(ctx)
 		}
 		e.ProcessFunc(ctx)
 	})
+	e.Logger.Info(nil, "start server")
 	return http.ListenAndServe(e.Port, nil)
 }
 
 func defaultProcess(c *Context) {
+	msgChan := make(chan []byte, 100)
+	closeChan := make(chan struct{})
 	go func() {
 	Loop:
 		for {
 			select {
-			case msg := <-c.MsgChan:
+			case msg := <-msgChan:
 				go func() {
 					wm := &Message{}
 					if err := c.ParseData(msg, wm); err != nil {
@@ -124,13 +119,13 @@ func defaultProcess(c *Context) {
 					}
 					handleFunc := c.Engine.GetRoute(wm.Router)
 					if handleFunc == nil {
-						c.Logger.Error(c, ErrorNotFountRouter+wm.Router)
+						c.Logger.Error(c, ErrorNotFountRouterMsg+wm.Router)
 						return
 					}
 					handleFunc(c, wm)
 					return
 				}()
-			case <-c.CloseChan:
+			case <-closeChan:
 				break Loop
 			}
 		}
@@ -144,13 +139,13 @@ func defaultProcess(c *Context) {
 			for _, f := range c.Engine.ReadErr {
 				f(c, msgType, err)
 			}
-			c.CloseRead()
+			closeChan <- struct{}{}
 			break
 		}
 		// read msg succ
 		for _, f := range c.Engine.AfterRead {
 			f(c, msgType, msg)
 		}
-		c.MsgChan <- msg
+		msgChan <- msg
 	}
 }
