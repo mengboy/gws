@@ -6,12 +6,12 @@ type Msg interface {
 }
 
 type Message struct {
-	Router string
-	Data   interface{}
+	Path string
+	Data interface{}
 }
 
 func (m *Message) GetRouter() string {
-	return m.Router
+	return m.Path
 }
 
 func (m *Message) GetData() interface{} {

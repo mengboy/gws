@@ -117,9 +117,9 @@ func defaultProcess(c *Context) {
 						c.Logger.Error(c, ErrorParseMsg+err.Error())
 						return
 					}
-					handleFunc := c.Engine.GetRoute(wm.Router)
+					handleFunc := c.Engine.GetRoute(wm.Path)
 					if handleFunc == nil {
-						c.Logger.Error(c, ErrorNotFountRouterMsg+wm.Router)
+						c.Logger.Error(c, ErrorNotFountRouterMsg+wm.Path)
 						return
 					}
 					handleFunc(c, wm)
