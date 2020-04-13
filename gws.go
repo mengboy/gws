@@ -7,20 +7,36 @@ import (
 )
 
 type Engine struct {
-	Path         string
-	Port         string
-	Upgrader     func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader
-	ResHeader    map[string]http.Header // 响应header
-	Timeout      int64                  // websocket 持续时间
-	router       *Router                // 路由
-	Logger       Log                    // log
-	CreateConnID func() string          // 生成唯一id
-	Hook
+	Path          string
+	Port          string
+	Upgrader      func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader
+	ResHeader     map[string]http.Header // 响应header
+	OpenHeartBeat bool
+	Timeout       int64         // websocket 持续时间
+	router        *Router       // 路由
+	Logger        Log           // log
+	CreateConnID  func() string // 生成唯一id
+	*HeartBeatConf
+	*Hook
 }
 
 // 初始化engine
 func New(path string, port string,
-	upgrader func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader) *Engine {
+	upgrader func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader, heartBeat bool, heartBeatConf *HeartBeatConf) *Engine {
+	// 初始化默认值
+	if heartBeat {
+		if heartBeatConf == nil {
+			heartBeatConf = &HeartBeatConf{
+				RetryTimes:       0,
+				HeartBeatTimeOut: 0,
+				HeartBeatChan:    make(chan struct{}, 0),
+				CurrentTimes:     0,
+			}
+		}
+		if heartBeatConf.HeartBeatChan == nil{
+			heartBeatConf.HeartBeatChan = make(chan struct{}, 0)
+		}
+	}
 	e := &Engine{
 		Path:     path,
 		Port:     port,
@@ -29,10 +45,31 @@ func New(path string, port string,
 		Logger: &Logger{
 			Logger: zap.NewNop(),
 		},
+		OpenHeartBeat: heartBeat,
+		HeartBeatConf: heartBeatConf,
+		Hook:          &Hook{},
+	}
+	if heartBeat {
+		e.AddHeartBeatHandler()
 	}
 	e.ProcessFunc = defaultProcess
 	e.CreateConnID = UUID
 	return e
+}
+
+// 开启心跳
+func (e *Engine) AddHeartBeatHandler(f ...func(ctx *Context, msg Msg)) {
+	// 处理ping请求
+	e.AddPath("ping", func(ctx *Context, msg Msg) {
+		ctx.Pong()
+	})
+	// 处理pong 响应
+	e.AddPath("pong", func(ctx *Context, msg Msg) {
+		ctx.HeartBeatChan <- struct{}{}
+	})
+	if f != nil {
+		e.AddPath("ping", f[0])
+	}
 }
 
 // 创建连接前
@@ -79,26 +116,26 @@ func (e *Engine) SetLogger(logger Log) {
 
 func (e *Engine) Run() error {
 	http.HandleFunc(e.Path, func(writer http.ResponseWriter, request *http.Request) {
-		for _, f := range e.BeforeConn {
-			f(writer, request)
-		}
+		e.Hook.StartBeforeConn(writer, request)
 		conn, err := e.Upgrader(writer, request).Upgrade(writer, request, e.ResHeader[e.Path])
 		if err != nil {
 			return
 		}
 		ctx := &Context{
-			ID:      e.CreateConnID(),
-			Conn:    conn,
-			Writer:  writer,
-			Request: request,
-			val:     map[string]string{},
-			Logger:  e.Logger,
-			Engine:  e,
+			ID:            e.CreateConnID(),
+			Conn:          conn,
+			Writer:        writer,
+			Request:       request,
+			val:           map[string]string{},
+			Logger:        e.Logger,
+			Engine:        e,
+			HeartBeatConf: e.HeartBeatConf,
 		}
-		for _, f := range e.AfterConn {
-			f(ctx)
+		if e.OpenHeartBeat {
+			ctx.StartHeartBeat()
 		}
-		e.ProcessFunc(ctx)
+		e.Hook.StartAfterConn(ctx)
+		e.Hook.StartProcessFunc(ctx)
 	})
 	e.Logger.Info(nil, "start server")
 	return http.ListenAndServe(e.Port, nil)
@@ -123,6 +160,7 @@ func defaultProcess(c *Context) {
 						c.Logger.Error(c, ErrorNotFountRouterMsg+wm.Path)
 						return
 					}
+					// TODO 处理
 					handleFunc(c, wm)
 					return
 				}()
@@ -137,16 +175,12 @@ func defaultProcess(c *Context) {
 		if err != nil {
 			c.Logger.Error(c, ErrorReadMsg+err.Error())
 			// read msg failed process
-			for _, f := range c.Engine.ReadErr {
-				f(c, msgType, err)
-			}
+			c.Engine.Hook.StartReadErrFunc(c, msgType, err)
 			closeChan <- struct{}{}
 			break
 		}
 		// read msg succ
-		for _, f := range c.Engine.AfterRead {
-			f(c, msgType, msg)
-		}
+		c.Engine.Hook.StartAfterRead(c, msgType, msg)
 		msgChan <- msg
 	}
 }

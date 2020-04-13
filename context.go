@@ -9,6 +9,13 @@ import (
 	"time"
 )
 
+type HeartBeatConf struct {
+	RetryTimes       int // 重试次数
+	HeartBeatTimeOut int
+	HeartBeatChan    chan struct{}
+	CurrentTimes     int
+}
+
 // context
 type Context struct {
 	ID      string // 连接id
@@ -16,11 +23,20 @@ type Context struct {
 	Writer  http.ResponseWriter
 	Request *http.Request
 	Logger  Log
-	val     map[string]string
-	Timer   map[string]*time.Timer
-	Group   *group // 所属组
+	*HeartBeatConf
+	val   map[string]string
+	Timer map[string]*time.Timer
+	Group *group // 所属组
 	sync.Mutex
 	*Engine
+}
+
+// 心跳检测 连接是否die
+func (c *Context) IfDie() bool {
+	if c.RetryTimes == 0 && c.CurrentTimes == 0 {
+		return true
+	}
+	return c.CurrentTimes >= c.RetryTimes
 }
 
 func (c *Context) ParseData(msgByte []byte, ob interface{}) error {
@@ -66,7 +82,7 @@ func (c *Context) ClearTimer() {
 	c.Timer = nil
 }
 
-//error msg
+// error msg
 // read: connection reset by peer
 // use of closed network connection
 // write: broken pipe
@@ -93,4 +109,38 @@ func (c *Context) SendJson(data interface{}) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Conn.WriteJSON(data)
+}
+
+func (c *Context) Ping() {
+	_ = c.SendText(Message{
+		Path: "ping",
+		Data: nil,
+	})
+}
+
+func (c *Context) Pong() {
+	_ = c.SendText(Message{
+		Path: "pong",
+		Data: nil,
+	})
+}
+
+// TODO heart beat time
+func (c *Context) StartHeartBeat() {
+	go func() {
+		c.Ping()
+		for {
+			ticker := time.NewTicker(10 * time.Second)
+			select {
+			case <-c.HeartBeatChan:
+				c.Ping()
+				time.Sleep(1 * time.Second)
+			case <-ticker.C:
+				c.CurrentTimes++
+				if c.CurrentTimes < c.RetryTimes {
+					c.Ping()
+				}
+			}
+		}
+	}()
 }

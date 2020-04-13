@@ -3,6 +3,7 @@ package gws
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 type groupManager struct {
@@ -11,7 +12,7 @@ type groupManager struct {
 	groupReadyMap    map[string]*group // 满员
 	groupNotReadyMap map[string]*group // 未满员
 	buildGroupID     func() string     // 生成group id
-	Hook
+	*Hook
 }
 
 // group manager
@@ -23,6 +24,7 @@ type group struct {
 	gm         *groupManager
 	cap        int
 	currentCap int
+	timer      map[string]*time.Timer
 	sync.Mutex
 }
 
@@ -33,6 +35,7 @@ func NewGM(cap int) *groupManager {
 		groupReadyMap:    map[string]*group{},
 		groupNotReadyMap: map[string]*group{},
 		buildGroupID:     UUID,
+		Hook:             &Hook{},
 	}
 }
 
@@ -46,8 +49,14 @@ func (gm *groupManager) SetJoinGroupHook(afterJoinGroup ...func(c *Context, g *g
 	gm.AfterJoinGroup = append(gm.AfterJoinGroup, afterJoinGroup...)
 }
 
+// 设置离开group的hook
 func (gm *groupManager) SetLeaveGroupHook(leaveJoinGroup ...func(c *Context, g *group)) {
 	gm.AfterJoinGroup = append(gm.AfterJoinGroup, leaveJoinGroup...)
+}
+
+// 设置组内向ctx发送失败的hook
+func (gm *groupManager) SetGroupSendFailed(groupSendFailed ...func(c *Context, g *group)) {
+	gm.GroupSendFailed = append(gm.GroupSendFailed, groupSendFailed...)
 }
 
 // 获取一个未满员组，没有的话创建新组
@@ -60,6 +69,7 @@ var ErrorGroupNotExist = errors.New("group not exist")
 
 // 创建组
 func (gm *groupManager) newGroup() *group {
+
 	g := &group{
 		ID:     gm.buildGroupID(),
 		CtxMap: map[string]*Context{},
@@ -68,6 +78,8 @@ func (gm *groupManager) newGroup() *group {
 		Mutex:  sync.Mutex{},
 	}
 	gm.groupNotReadyMap[g.ID] = g
+	// 创建group成功
+	gm.Hook.StartCreateGroup(g)
 	return g
 }
 
@@ -99,9 +111,7 @@ func (g *group) joinGroup(c *Context) {
 		g.gm.groupReadyMap[g.ID] = g
 	}
 	// 加入组成功 hook
-	for _, f := range g.gm.AfterJoinGroup {
-		f(c, g)
-	}
+	g.gm.Hook.StartAfterJoinGroup(c, g)
 }
 
 // 加入指定组
@@ -126,17 +136,17 @@ func (g *group) LeaveGroup(c *Context) {
 		delete(g.CtxMap, c.ID)
 	}
 	// 离开组hook
-	for _, f := range g.gm.AfterLeaveGroup {
-		f(c, g)
-	}
+	g.gm.Hook.StartAfterLeaveGroup(c, g)
 }
 
 func (g *group) SendAll(data interface{}) {
 	g.Lock()
 	defer g.Unlock()
 	for _, c := range g.CtxMap {
-		// TODO 发送msg失败处理
-		_ = c.SendText(data)
+		//  发送msg失败处理
+		if err := c.SendText(data); err != nil {
+			g.gm.StartGroupSendFailed(c, g)
+		}
 	}
 }
 
@@ -147,7 +157,9 @@ func (g *group) SendWithoutC(withC *Context, data interface{}) {
 		if c.ID == withC.ID {
 			continue
 		}
-		// TODO 发送msg失败处理
-		_ = c.SendText(data)
+		//  发送msg失败处理
+		if err := c.SendText(data); err != nil {
+			g.gm.StartGroupSendFailed(c, g)
+		}
 	}
 }
