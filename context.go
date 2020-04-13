@@ -10,19 +10,17 @@ import (
 )
 
 // context
-
 type Context struct {
 	ID      string // 连接id
 	Conn    *websocket.Conn
 	Writer  http.ResponseWriter
 	Request *http.Request
-	Closed  bool
 	Logger  Log
 	val     map[string]string
 	Timer   map[string]*time.Timer
 	Group   *group // 所属组
 	sync.Mutex
-	Engine
+	*Engine
 }
 
 func (c *Context) ParseData(msgByte []byte, ob interface{}) error {

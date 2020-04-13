@@ -65,12 +65,12 @@ func (e *Engine) SetResHeader(path string, header http.Header) {
 	e.ResHeader[path] = header
 }
 
-func (e *Engine) AddRouter(router string, handle HandlerFunc) {
-	e.router.AddRouter(router, handle)
+func (e *Engine) AddPath(path string, handle HandlerFunc) {
+	e.router.AddPath(path, handle)
 }
 
-func (e *Engine) GetRoute(router string) HandlerFunc {
-	return e.router.Handler[router]
+func (e *Engine) GetHandlerFunc(path string) HandlerFunc {
+	return e.router.Handler[path]
 }
 
 func (e *Engine) SetLogger(logger Log) {
@@ -93,6 +93,7 @@ func (e *Engine) Run() error {
 			Request: request,
 			val:     map[string]string{},
 			Logger:  e.Logger,
+			Engine:  e,
 		}
 		for _, f := range e.AfterConn {
 			f(ctx)
@@ -117,7 +118,7 @@ func defaultProcess(c *Context) {
 						c.Logger.Error(c, ErrorParseMsg+err.Error())
 						return
 					}
-					handleFunc := c.Engine.GetRoute(wm.Path)
+					handleFunc := c.Engine.GetHandlerFunc(wm.Path)
 					if handleFunc == nil {
 						c.Logger.Error(c, ErrorNotFountRouterMsg+wm.Path)
 						return

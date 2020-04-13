@@ -135,6 +135,7 @@ func (g *group) SendAll(data interface{}) {
 	g.Lock()
 	defer g.Unlock()
 	for _, c := range g.CtxMap {
+		// TODO 发送msg失败处理
 		_ = c.SendText(data)
 	}
 }
@@ -146,6 +147,7 @@ func (g *group) SendWithoutC(withC *Context, data interface{}) {
 		if c.ID == withC.ID {
 			continue
 		}
+		// TODO 发送msg失败处理
 		_ = c.SendText(data)
 	}
 }

@@ -6,6 +6,8 @@ type Router struct {
 	Handler map[string]HandlerFunc
 }
 
-func (r *Router) AddRouter(router string, handle HandlerFunc) {
+func (r *Router) AddPath(router string, handle HandlerFunc) {
 	r.Handler[router] = handle
 }
+
+

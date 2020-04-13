@@ -6,8 +6,8 @@ type Msg interface {
 }
 
 type Message struct {
-	Path string
-	Data interface{}
+	Path string      `json:"path"`
+	Data interface{} `json:"data"`
 }
 
 func (m *Message) GetRouter() string {
