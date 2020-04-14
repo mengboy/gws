@@ -3,15 +3,16 @@ package gws
 import "net/http"
 
 type Hook struct {
-	BeforeConn      []func(writer http.ResponseWriter, request *http.Request) // 创建连接前插件
-	AfterConn       []func(c *Context)                                        // 创建连接后插件
-	ProcessFunc     func(c *Context)                                          // 处理成功连接
-	AfterRead       []func(c *Context, msgType int, msg []byte)               // 成功读取msg
-	ReadErr         []func(c *Context, msgType int, err error)                // 读取msg error
-	CreateGroup     []func(g *group)                                          // 创建group成功
-	AfterJoinGroup  []func(c *Context, g *group)                              // 加入group
-	AfterLeaveGroup []func(c *Context, g *group)                              // 离开group
-	GroupSendFailed []func(c *Context, g *group)                              // 处理群组发送消息失败的情况, 向c发送消息失败
+	BeforeConn       []func(writer http.ResponseWriter, request *http.Request) // 创建连接前插件
+	AfterConn        []func(c *Context)                                        // 创建连接后插件
+	ProcessFunc      func(c *Context)                                          // 处理成功连接
+	AfterRead        []func(c *Context, msgType int, msg []byte)               // 成功读取msg
+	ReadErr          []func(c *Context, msgType int, err error)                // 读取msg error
+	CreateGroup      []func(g *group)                                          // 创建group成功
+	AfterJoinGroup   []func(c *Context, g *group)                              // 加入group
+	AfterLeaveGroup  []func(c *Context, g *group)                              // 离开group
+	GroupSendFailed  []func(c *Context, g *group)                              // 处理群组发送消息失败的情况, 向c发送消息失败
+	OwnerCreateGroup []func(c *Context)                                      // group owner 创建group成功后执行
 }
 
 func (h *Hook) StartBeforeConn(writer http.ResponseWriter, request *http.Request) {
@@ -63,5 +64,11 @@ func (h *Hook) StartAfterLeaveGroup(c *Context, g *group) {
 func (h *Hook) StartGroupSendFailed(c *Context, g *group) {
 	for _, f := range g.gm.GroupSendFailed {
 		f(c, g)
+	}
+}
+
+func (h *Hook) StartOwnerCreateGroup(c *Context)  {
+	for _, f := range c.Group.gm.OwnerCreateGroup {
+		f(c)
 	}
 }

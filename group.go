@@ -21,6 +21,7 @@ type groupManager struct {
 type group struct {
 	ID         string
 	CtxMap     map[string]*Context
+	owner      *Context
 	gm         *groupManager
 	cap        int
 	currentCap int
@@ -129,6 +130,18 @@ func (gm *groupManager) JoinAGroup(id string, c *Context) error {
 	return ErrorGroupNotExist
 }
 
+// 房主创建房间
+func (gm *groupManager) CreateGroupWithOwner(c *Context) {
+	gm.Lock()
+	defer gm.Unlock()
+	g := gm.newGroup()
+	g.joinGroup(c)
+	g.owner = c
+	// TODO 房主创建group hook
+	gm.StartOwnerCreateGroup(c)
+}
+
+// 用户离开
 func (g *group) LeaveGroup(c *Context) {
 	g.Lock()
 	defer g.Unlock()

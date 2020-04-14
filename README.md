@@ -1,4 +1,5 @@
-### websocket 常用封装
+### websocket 常用封装 
+- 基于github.com/gorilla/websocket
 
 #### 单个连接 
 

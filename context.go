@@ -39,18 +39,26 @@ func (c *Context) IfDie() bool {
 	return c.CurrentTimes >= c.RetryTimes
 }
 
+func (c *Context) IsOwner() bool  {
+	return c.Group.owner == c
+}
+
+// TODO 解析数据
 func (c *Context) ParseData(msgByte []byte, ob interface{}) error {
 	return json.Unmarshal(msgByte, ob)
 }
 
+// 设置参数
 func (c *Context) Set(key string, val string) {
 	c.val[key] = val
 }
 
+// 获取参数
 func (c *Context) Get(key string) string {
 	return c.val[key]
 }
 
+// 设置timer
 func (c *Context) SetTimer(key string, timer *time.Timer) {
 	if c.Timer == nil {
 		c.Timer = map[string]*time.Timer{
@@ -61,6 +69,7 @@ func (c *Context) SetTimer(key string, timer *time.Timer) {
 	c.Timer[key] = timer
 }
 
+// stop timer
 func (c *Context) CloseTimer(key string) {
 	if c.Timer == nil {
 		return
@@ -73,6 +82,7 @@ func (c *Context) CloseTimer(key string) {
 	}
 }
 
+// 清除timer
 func (c *Context) ClearTimer() {
 	for _, t := range c.Timer {
 		if t != nil {
