@@ -7,7 +7,6 @@ import (
 )
 
 type Engine struct {
-	Path          string
 	Port          string
 	Upgrader      func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader
 	ResHeader     map[string]http.Header // 响应header
@@ -21,7 +20,7 @@ type Engine struct {
 }
 
 // 初始化engine
-func New(path string, port string,
+func New(port string,
 	upgrader func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader, heartBeat bool, heartBeatConf *HeartBeatConf) *Engine {
 	// 初始化默认值
 	if heartBeat {
@@ -33,12 +32,11 @@ func New(path string, port string,
 				CurrentTimes:     0,
 			}
 		}
-		if heartBeatConf.HeartBeatChan == nil{
+		if heartBeatConf.HeartBeatChan == nil {
 			heartBeatConf.HeartBeatChan = make(chan struct{}, 0)
 		}
 	}
 	e := &Engine{
-		Path:     path,
 		Port:     port,
 		Upgrader: upgrader,
 		router:   &Router{Handler: map[string]HandlerFunc{}},
@@ -48,6 +46,7 @@ func New(path string, port string,
 		OpenHeartBeat: heartBeat,
 		HeartBeatConf: heartBeatConf,
 		Hook:          &Hook{},
+		ResHeader:     map[string]http.Header{},
 	}
 	if heartBeat {
 		e.AddHeartBeatHandler()
@@ -114,29 +113,38 @@ func (e *Engine) SetLogger(logger Log) {
 	e.Logger = logger
 }
 
+
+// 添加ws handler
+func (e *Engine) AddWsHandler(path string, handlerFunc http.HandlerFunc) {
+	if handlerFunc == nil {
+		// default
+		handlerFunc = func(writer http.ResponseWriter, request *http.Request) {
+			e.Hook.StartBeforeConn(writer, request)
+			conn, err := e.Upgrader(writer, request).Upgrade(writer, request, e.ResHeader[path])
+			if err != nil {
+				return
+			}
+			ctx := &Context{
+				ID:            e.CreateConnID(),
+				Conn:          conn,
+				Writer:        writer,
+				Request:       request,
+				val:           map[string]string{},
+				Logger:        e.Logger,
+				Engine:        e,
+				HeartBeatConf: e.HeartBeatConf,
+			}
+			if e.OpenHeartBeat {
+				ctx.StartHeartBeat()
+			}
+			e.Hook.StartAfterConn(ctx)
+			e.Hook.StartProcessFunc(ctx)
+		}
+	}
+	http.HandleFunc(path, handlerFunc)
+}
+
 func (e *Engine) Run() error {
-	http.HandleFunc(e.Path, func(writer http.ResponseWriter, request *http.Request) {
-		e.Hook.StartBeforeConn(writer, request)
-		conn, err := e.Upgrader(writer, request).Upgrade(writer, request, e.ResHeader[e.Path])
-		if err != nil {
-			return
-		}
-		ctx := &Context{
-			ID:            e.CreateConnID(),
-			Conn:          conn,
-			Writer:        writer,
-			Request:       request,
-			val:           map[string]string{},
-			Logger:        e.Logger,
-			Engine:        e,
-			HeartBeatConf: e.HeartBeatConf,
-		}
-		if e.OpenHeartBeat {
-			ctx.StartHeartBeat()
-		}
-		e.Hook.StartAfterConn(ctx)
-		e.Hook.StartProcessFunc(ctx)
-	})
 	e.Logger.Info(nil, "start server")
 	return http.ListenAndServe(e.Port, nil)
 }
