@@ -50,11 +50,11 @@ func (c *Context) GetInt32(key string) int32 {
 	return c.Int32Map[key]
 }
 
-func (c *Context) SetInterface(key string, val interface{})  {
+func (c *Context) SetInterface(key string, val interface{}) {
 	c.InterfaceMap[key] = val
 }
 
-func (c *Context) GetInterface(key string) interface{}  {
+func (c *Context) GetInterface(key string) interface{} {
 	return c.InterfaceMap[key]
 }
 
@@ -76,12 +76,12 @@ func (c *Context) ParseData(msgByte []byte, ob interface{}) error {
 }
 
 // 设置参数
-func (c *Context) Set(key string, val string) {
+func (c *Context) SetString(key string, val string) {
 	c.StrMap[key] = val
 }
 
 // 获取参数
-func (c *Context) Get(key string) string {
+func (c *Context) GetString(key string) string {
 	return c.StrMap[key]
 }
 
