@@ -129,7 +129,7 @@ func (e *Engine) AddWsHandler(path string, handlerFunc http.HandlerFunc) {
 				Conn:          conn,
 				Writer:        writer,
 				Request:       request,
-				val:           map[string]string{},
+				StrMap:        map[string]string{},
 				Logger:        e.Logger,
 				Engine:        e,
 				HeartBeatConf: e.HeartBeatConf,

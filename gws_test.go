@@ -13,7 +13,7 @@ import (
 )
 
 func TestEngine_Run(t *testing.T) {
-	e := New("/wshub", ":8080", func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader {
+	e := New(":8080", func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader {
 		return &websocket.Upgrader{
 			HandshakeTimeout: 0,
 			ReadBufferSize:   0,
@@ -27,6 +27,7 @@ func TestEngine_Run(t *testing.T) {
 			EnableCompression: false,
 		}
 	}, false, nil)
+	e.AddPath("/wshub", nil)
 	e.AddPath("ping", func(ctx *Context, msg Msg) {
 		_ = ctx.SendText(Message{
 			Path: "pong",
@@ -63,7 +64,7 @@ func TestEngine_Run(t *testing.T) {
 }
 
 func Test_Heartbeat(t *testing.T) {
-	e := New("/wshub", ":8080", func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader {
+	e := New(":8080", func(writer http.ResponseWriter, request *http.Request) *websocket.Upgrader {
 		return &websocket.Upgrader{
 			HandshakeTimeout: 0,
 			ReadBufferSize:   0,
@@ -77,7 +78,7 @@ func Test_Heartbeat(t *testing.T) {
 			EnableCompression: false,
 		}
 	}, true, nil)
-
+	e.AddPath("/wshub", nil)
 	go func() {
 		if err := e.Run(); err != nil {
 			panic(err)

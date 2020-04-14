@@ -24,11 +24,38 @@ type Context struct {
 	Request *http.Request
 	Logger  Log
 	*HeartBeatConf
-	val   map[string]string
-	Timer map[string]*time.Timer
-	Group *group // 所属组
+	StrMap       map[string]string
+	Int64Map     map[string]int64
+	Int32Map     map[string]int32
+	InterfaceMap map[string]interface{}
+	Timer        map[string]*time.Timer
+	Group        *group // 所属组
 	sync.Mutex
 	*Engine
+}
+
+func (c *Context) SetInt64(key string, val int64) {
+	c.Int64Map[key] = val
+}
+
+func (c *Context) GetInt64(key string) int64 {
+	return c.Int64Map[key]
+}
+
+func (c *Context) SetInt32(key string, val int32) {
+	c.Int32Map[key] = val
+}
+
+func (c *Context) GetInt32(key string) int32 {
+	return c.Int32Map[key]
+}
+
+func (c *Context) SetInterface(key string, val interface{})  {
+	c.InterfaceMap[key] = val
+}
+
+func (c *Context) GetInterface(key string) interface{}  {
+	return c.InterfaceMap[key]
 }
 
 // 心跳检测 连接是否die
@@ -39,7 +66,7 @@ func (c *Context) IfDie() bool {
 	return c.CurrentTimes >= c.RetryTimes
 }
 
-func (c *Context) IsOwner() bool  {
+func (c *Context) IsOwner() bool {
 	return c.Group.owner == c
 }
 
@@ -50,12 +77,12 @@ func (c *Context) ParseData(msgByte []byte, ob interface{}) error {
 
 // 设置参数
 func (c *Context) Set(key string, val string) {
-	c.val[key] = val
+	c.StrMap[key] = val
 }
 
 // 获取参数
 func (c *Context) Get(key string) string {
-	return c.val[key]
+	return c.StrMap[key]
 }
 
 // 设置timer
